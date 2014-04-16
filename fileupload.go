@@ -45,18 +45,27 @@ func uhandler(w http.ResponseWriter, r *http.Request) {
 	if !captcha.VerifyString(r.FormValue("captchaId"), r.FormValue("captchasol")) {
 		w.Write([]byte("<p>Bad captcha; try again. </p>"))
 	} else {
-		file, h, err := r.FormFile("file")
+		f, h, err := r.FormFile("file")
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		data, err := ioutil.ReadAll(f)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		outd, err := ioutil.TempDir(datadir, "")
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		fn := outd+"/"+h.Filename
+		err = ioutil.WriteFile(fn, data, 0777)
 		if err != nil {
 			fmt.Println(err)
 		}
-		data, err := ioutil.ReadAll(file)
-		if err != nil {
-			fmt.Println(err)
-		}
-		err = ioutil.WriteFile(datadir+"/"+h.Filename, data, 0777)
-		if err != nil {
-			fmt.Println(err)
-		} 
+		w.Write([]byte("Here is your link: <a href=\"/d/"+fn+"\">"+h.Filename+"</a>"))
 	}
 }
 
@@ -68,7 +77,9 @@ func main() {
 	http.HandleFunc("/u/", uhandler)
 	http.Handle("/c/", captcha.Server(captcha.StdWidth, captcha.StdHeight))
 
-	http.HandleFunc("/d/", dhandler)
+	http.Handle("/d/",
+		http.StripPrefix("/d/data/",
+			http.FileServer(http.Dir(datadir))))
 
 	log.Print("Launching on http://localhost:"+*port)
 
