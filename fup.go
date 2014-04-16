@@ -2,15 +2,23 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/dchest/captcha"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"text/template"
+	"time"
 )
 
-const datadir = "./data/"
+
+const (
+	Maxsize = 5*1024
+	Maxtime = 24*3600
+
+	datadir = "./data/"
+)
 
 var port = flag.String("port", "8080", "Listening HTTP port")
 
@@ -34,6 +42,23 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var cache map[string]int64
+
+func cleaning() {
+	for {
+		time.Sleep(2*time.Hour)
+		now := time.Now().Unix()
+		for k, _ := range cache {
+			if now-cache[k] >= Maxtime {
+				err := os.Remove(k)
+				if err != nil {
+					log.Println(err)
+				}
+			}
+		}
+	}
+}
+
 func uhandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.WriteHeader(http.StatusNotImplemented)
@@ -48,31 +73,37 @@ func uhandler(w http.ResponseWriter, r *http.Request) {
 		f, h, err := r.FormFile("file")
 		if err != nil {
 			log.Println(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		data, err := ioutil.ReadAll(f)
+		r := io.LimitReader(f, Maxsize)
+		data, err := ioutil.ReadAll(r)
 		if err != nil {
 			log.Println(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		outd, err := ioutil.TempDir(datadir, "")
 		if err != nil {
 			log.Println(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		fn := outd+"/"+h.Filename
 		err = ioutil.WriteFile(fn, data, 0777)
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		cache[fn] = time.Now().Unix()
 		w.Write([]byte("Here is your link: <a href=\"/"+fn+"\">"+h.Filename+"</a>"))
 	}
 }
 
-func dhandler(w http.ResponseWriter, r *http.Request) {
-}
-
 func main() {
+	go cleaning()
+
 	http.HandleFunc("/", handler)
 	http.HandleFunc("/about/", handler)
 	http.HandleFunc("/u/", uhandler)
