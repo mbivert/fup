@@ -130,6 +130,8 @@ func uhandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.Parse()
+
 	cache = make(map[string]Fileinfo)
 	cachesz = 0
 
