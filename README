@@ -1,5 +1,6 @@
-= Temporary file uploader
-Total capacity available for the uploader: 2Gio (Maxstorage
+HTTP service allowing to deposit and withdraw temporary files.
+
+Total capacity available for the uploader: 2Gio (Maxstorage)
 Maximum size of a file : 5Mio (Maxsize)
 Maximum duration of a file : 24h (Maxduration)
 
