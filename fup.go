@@ -26,10 +26,11 @@ const (
 	Cleantime = 2*time.Hour
 //	Cleantime = 2*time.Second
 
-	datadir = "./data/"
+
 )
 
 var port = flag.String("port", "8080", "Listening HTTP port")
+var datadir = flag.String("data", "./data/", "Listening HTTP port")
 
 var indextmpl = template.Must(template.New("example").Parse(indexsrc))
 
@@ -111,13 +112,13 @@ func uhandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		outd, err := ioutil.TempDir(datadir, "")
+		outd, err := ioutil.TempDir(*datadir, "")
 		if err != nil {
 			log.Println(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fn := outd+"/"+h.Filename
+		fn := path.Clean(outd+"/"+h.Filename)
 		err = ioutil.WriteFile(fn, data, 0777)
 		if err != nil {
 			log.Println(err)
@@ -145,7 +146,7 @@ func main() {
 
 	http.Handle("/data/",
 		http.StripPrefix("/data/",
-			http.FileServer(http.Dir(datadir))))
+			http.FileServer(http.Dir(*datadir))))
 
 	log.Print("Launching on http://localhost:"+*port)
 
@@ -221,7 +222,6 @@ const indexsrc = `
 
 		<footer class="">
 			<div class="container text-center">
-				<p>Free of use. Consider <a href="TODO">donations.</a> if you enjoy! </p>
 				<p>Source available on <a href="https://github.com/heaumer/fup">Github</a></p>
 			</div>
 		</footer>
