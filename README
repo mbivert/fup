@@ -10,6 +10,10 @@ Flag "-port" changes default port (:8080).
 
 Flag "-data" changes default data directory (./data).
 
+To disable file listing in /data:
+
+  % touch data/index.html
+
 See http://fup.awesom.eu for a running example.
 
 Public domain.
