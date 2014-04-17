@@ -1,0 +1,10 @@
+= Temporary file uploader
+Total capacity available for the uploader: 2Gio (Maxstorage
+Maximum size of a file : 5Mio (Maxsize)
+Maximum duration of a file : 24h (Maxduration)
+
+A goroutine check outdated files every 2 hours (Cleantime).
+
+Flag "-port" changes default port (:8080).
+
+See http://fup.awesom.eu for a running example.
