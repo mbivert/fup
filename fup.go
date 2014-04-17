@@ -8,14 +8,23 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"text/template"
 	"time"
 )
 
 
 const (
-	Maxsize = 5*1024
+	// Maximum storage available (2G)
+	Maxstorage = 2<<30
+	// File maximum size and storage duration
+	Maxsize = 5<<20
 	Maxtime = 24*3600
+//	Maxtime = 20
+
+	// Cleaning every Cleantime
+	Cleantime = 2*time.Hour
+//	Cleantime = 2*time.Second
 
 	datadir = "./data/"
 )
@@ -42,18 +51,26 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var cache map[string]int64
+type Fileinfo struct {
+	ctime	int64	// creation time as UNIX timestamp
+	sz		int		// len in bytes
+}
+
+var cache map[string]Fileinfo
+var cachesz int64
 
 func cleaning() {
 	for {
-		time.Sleep(2*time.Hour)
+		time.Sleep(Cleantime)
 		now := time.Now().Unix()
 		for k, _ := range cache {
-			if now-cache[k] >= Maxtime {
-				err := os.Remove(k)
+			if now-cache[k].ctime >= Maxtime {
+				err := os.RemoveAll(path.Dir(k))
 				if err != nil {
 					log.Println(err)
 				}
+				cachesz -= int64(cache[k].sz)
+				delete(cache, k)
 			}
 		}
 	}
@@ -76,13 +93,24 @@ func uhandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		r := io.LimitReader(f, Maxsize)
+		r := io.LimitReader(f, Maxsize+1)
 		data, err := ioutil.ReadAll(r)
 		if err != nil {
 			log.Println(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if len(data) >= Maxsize {
+			log.Println("attempting to store a", len(data), "bytes long file")
+			http.Error(w, "File too big", http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		if cachesz+int64(len(data)) >= Maxstorage {
+			http.Error(w, "Maximum storage reach; please wait", http.StatusRequestEntityTooLarge)
+			return
+		}
+
 		outd, err := ioutil.TempDir(datadir, "")
 		if err != nil {
 			log.Println(err)
@@ -96,12 +124,15 @@ func uhandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		cache[fn] = time.Now().Unix()
+		cache[fn] = Fileinfo{ time.Now().Unix(), len(data) }
 		w.Write([]byte("Here is your link: <a href=\"/"+fn+"\">"+h.Filename+"</a>"))
 	}
 }
 
 func main() {
+	cache = make(map[string]Fileinfo)
+	cachesz = 0
+
 	go cleaning()
 
 	http.HandleFunc("/", handler)
